@@ -24,3 +24,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Фикс наложения длинного текста в таблицах CRM */
+.grid > * {
+  min-width: 0;
+}
+
+.grid div,
+.grid p,
+.grid span {
+  overflow-wrap: anywhere;
+}
