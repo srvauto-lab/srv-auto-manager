@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { defaultAppSettings, normalizeAppSettings } from "@/lib/appSettings";
 
 const OPENAI_API_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5-mini";
@@ -107,6 +109,23 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as TranslateRequestBody;
     const texts = validateTexts(body.texts);
 
+    const { data: settingsRow } = await supabaseAdmin
+      .from("app_settings")
+      .select("settings")
+      .eq("id", "main")
+      .maybeSingle();
+
+    const appSettings = normalizeAppSettings(
+      settingsRow?.settings || defaultAppSettings
+    );
+
+    if (!appSettings.ai.enabled) {
+      return NextResponse.json(
+        { error: "AI-перевод отключён в настройках CRM." },
+        { status: 403 }
+      );
+    }
+
     const response = await fetch(OPENAI_API_URL, {
       method: "POST",
       headers: {
@@ -114,7 +133,10 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_TRANSLATION_MODEL || DEFAULT_MODEL,
+        model:
+          process.env.OPENAI_TRANSLATION_MODEL ||
+          appSettings.ai.model ||
+          DEFAULT_MODEL,
         instructions:
           "Ты профессиональный переводчик документации французского автосервиса. " +
           "Переводи русский текст на естественный профессиональный французский язык, " +

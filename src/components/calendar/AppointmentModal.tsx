@@ -11,6 +11,12 @@ type Client = {
   phone: string | null;
 };
 
+type MechanicOption = {
+  id: string;
+  name: string;
+  role: string;
+};
+
 type Vehicle = {
   id: string;
   client_id: string | null;
@@ -18,9 +24,6 @@ type Vehicle = {
   model: string;
   plate: string | null;
 };
-
-const lifts = ["Пост №1", "Пост №2", "Пост №3", "Пост приёмки / диагностики"];
-const mechanics = ["Сергей", "Вадим", "Роберт"];
 
 function buildTimeOptions() {
   const times: string[] = [];
@@ -41,6 +44,8 @@ export default function AppointmentModal({
   lift,
   clients,
   vehicles,
+  lifts,
+  mechanics,
   onClose,
   onSaved,
 }: {
@@ -49,6 +54,8 @@ export default function AppointmentModal({
   lift: string;
   clients: Client[];
   vehicles: Vehicle[];
+  lifts: string[];
+  mechanics: MechanicOption[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -71,14 +78,14 @@ export default function AppointmentModal({
   const [endTime, setEndTime] = useState("10:00");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [mechanic, setMechanic] = useState("");
-  const [selectedLift, setSelectedLift] = useState(lift);
+  const [mechanicId, setMechanicId] = useState("");
+  const [selectedLift, setSelectedLift] = useState(lift || lifts[0] || "");
   const [status, setStatus] = useState("planned");
   const [createWorkOrderNow, setCreateWorkOrderNow] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) setSelectedLift(lift);
+    if (open) setSelectedLift(lift || lifts[0] || "");
   }, [open, lift]);
 
   const filteredVehicles = useMemo(() => {
@@ -165,6 +172,8 @@ export default function AppointmentModal({
       finalVehicleId = newVehicle.id;
     }
 
+    const selectedMechanic = mechanics.find((item) => item.id === mechanicId);
+
     const { data: appointment, error } = await supabase
       .from("appointments")
       .insert({
@@ -175,7 +184,8 @@ export default function AppointmentModal({
         end_time: endTime,
         title,
         description,
-        mechanic,
+        mechanic: selectedMechanic?.name || null,
+        mechanic_id: selectedMechanic?.id || null,
         lift: selectedLift,
         status: createWorkOrderNow ? "arrived" : status,
         new_client_name: newClientName,
@@ -205,6 +215,7 @@ export default function AppointmentModal({
           customer_complaint: title,
           work_description: description || "",
           status: "Принят",
+          assigned_mechanic_id: selectedMechanic?.id || null,
           labor_total: 0,
           parts_total: 0,
           total_amount: 0,
@@ -345,9 +356,9 @@ export default function AppointmentModal({
 
           <textarea className="w-full rounded bg-zinc-950 p-3" placeholder="Комментарий" value={description} onChange={(e) => setDescription(e.target.value)} />
 
-          <select className="w-full rounded bg-zinc-950 p-3" value={mechanic} onChange={(e) => setMechanic(e.target.value)}>
+          <select className="w-full rounded bg-zinc-950 p-3" value={mechanicId} onChange={(e) => setMechanicId(e.target.value)}>
             <option value="">Механик</option>
-            {mechanics.map((item) => <option key={item} value={item}>{item}</option>)}
+            {mechanics.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
 
           <label className="flex items-center gap-3 rounded bg-zinc-950 p-3">

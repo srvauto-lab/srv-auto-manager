@@ -1,5 +1,7 @@
-﻿import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 const statusMap: Record<
   string,
@@ -32,6 +34,7 @@ function money(value: unknown) {
 }
 
 export default async function FacturesPage() {
+  const supabase = await createClient();
   const { data: factures, error } = await supabase
     .from("factures")
     .select(`

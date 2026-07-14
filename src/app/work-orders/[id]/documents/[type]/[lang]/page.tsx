@@ -1,5 +1,7 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import DocumentTemplate from "@/components/DocumentTemplate";
+
+export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ id: string; type: string; lang: string }>;
@@ -197,6 +199,7 @@ function toSellerData(row: CompanySettingsRow) {
 }
 
 export default async function DocumentPage({ params, searchParams }: PageProps) {
+  const supabase = await createClient();
   const { id, type, lang } = await params;
   const { seller, documentId } = await searchParams;
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import StatusBadge from "@/components/StatusBadge";
 
 function money(value: unknown) {
@@ -41,7 +41,10 @@ function daysSince(value: string | null | undefined) {
   );
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
+  const supabase = await createClient();
   const today = localDateString();
   const todayStart = startOfTodayIso();
   const monthStart = startOfMonthIso();

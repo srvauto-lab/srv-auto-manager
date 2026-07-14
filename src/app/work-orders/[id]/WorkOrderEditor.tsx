@@ -40,8 +40,10 @@ export default function WorkOrderEditor({ order, laborItems, partItems }: Props)
   const [complaint, setComplaint] = useState(order.customer_complaint || "");
   const [notes, setNotes] = useState(order.notes || "");
   const [labors, setLabors] = useState(laborItems || []);
-  const [parts, setParts] = useState(partItems || []);
-  const [originalParts, setOriginalParts] = useState(partItems || []);
+  const [parts, setParts] = useState(() => (partItems || []).map((item) => ({ ...item })));
+  const [originalParts, setOriginalParts] = useState(() =>
+    (partItems || []).map((item) => ({ ...item }))
+  );
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -132,47 +134,17 @@ export default function WorkOrderEditor({ order, laborItems, partItems }: Props)
   }) {
     if (!inventoryItemId || quantity === 0) return true;
 
-    const { data: inventoryItem, error: inventoryError } = await supabase
-      .from("inventory")
-      .select("id, quantity")
-      .eq("id", inventoryItemId)
-      .single();
+    const { error } = await supabase.rpc("apply_inventory_movement", {
+      p_inventory_item_id: inventoryItemId,
+      p_work_order_id: order.id,
+      p_work_order_part_item_id: workOrderPartItemId || null,
+      p_quantity_delta: quantity,
+      p_movement_type: movementType,
+      p_note: note,
+    });
 
-    if (inventoryError || !inventoryItem) {
-      alert(inventoryError?.message || "Позиция склада не найдена");
-      return false;
-    }
-
-    const nextQuantity = Number(inventoryItem.quantity || 0) + quantity;
-
-    if (nextQuantity < 0) {
-      alert("Недостаточно остатка на складе для списания.");
-      return false;
-    }
-
-    const { error: updateError } = await supabase
-      .from("inventory")
-      .update({ quantity: nextQuantity })
-      .eq("id", inventoryItemId);
-
-    if (updateError) {
-      alert(updateError.message);
-      return false;
-    }
-
-    const { error: movementError } = await supabase
-      .from("inventory_movements")
-      .insert({
-        inventory_item_id: inventoryItemId,
-        work_order_id: order.id,
-        work_order_part_item_id: workOrderPartItemId || null,
-        movement_type: movementType,
-        quantity,
-        note,
-      });
-
-    if (movementError) {
-      alert(movementError.message);
+    if (error) {
+      alert(error.message);
       return false;
     }
 
@@ -225,22 +197,31 @@ export default function WorkOrderEditor({ order, laborItems, partItems }: Props)
     router.refresh();
   }
 
+  function updatePart(index: number, patch: Record<string, unknown>) {
+    setParts((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...patch } : item
+      )
+    );
+  }
+
   function selectInventoryPart(index: number, inventoryId: string) {
     const selected = inventoryItems.find((item) => item.id === inventoryId);
-    const copy = [...parts];
 
-    copy[index].inventory_item_id = inventoryId || null;
-
-    if (selected) {
-      copy[index].name = selected.name || "";
-      copy[index].reference = selected.part_number || "";
-      copy[index].purchase_price = Number(selected.purchase_price || 0);
-      copy[index].unit_price = Number(selected.sale_price || 0);
-      copy[index].profit =
-        Number(selected.sale_price || 0) - Number(selected.purchase_price || 0);
-    }
-
-    setParts(copy);
+    updatePart(index, {
+      inventory_item_id: inventoryId || null,
+      ...(selected
+        ? {
+            name: selected.name || "",
+            reference: selected.part_number || "",
+            purchase_price: Number(selected.purchase_price || 0),
+            unit_price: Number(selected.sale_price || 0),
+            profit:
+              Number(selected.sale_price || 0) -
+              Number(selected.purchase_price || 0),
+          }
+        : {}),
+    });
   }
 
   async function handleStockForSavedPart(savedPart: any, previousPart?: any) {
@@ -510,8 +491,9 @@ export default function WorkOrderEditor({ order, laborItems, partItems }: Props)
       if (!mileageSaved) return;
 
       if (savedParts.length) {
-        setParts(savedParts);
-        setOriginalParts(savedParts);
+        const nextParts = savedParts.map((part) => ({ ...part }));
+        setParts(nextParts);
+        setOriginalParts(nextParts.map((part) => ({ ...part })));
       }
 
       setMessage("Сохранено. Себестоимость, прибыль и маржа пересчитаны.");
@@ -625,11 +607,11 @@ export default function WorkOrderEditor({ order, laborItems, partItems }: Props)
                   ))}
                 </select>
 
-                <input className="rounded bg-zinc-900 p-3" placeholder="Название" value={item.name || ""} onChange={(e) => { const copy = [...parts]; copy[index].name = e.target.value; setParts(copy); }} />
-                <input className="rounded bg-zinc-900 p-3" placeholder="Артикул" value={item.reference || ""} onChange={(e) => { const copy = [...parts]; copy[index].reference = e.target.value; setParts(copy); }} />
-                <input className="rounded bg-zinc-900 p-3" placeholder="Кол-во" value={item.quantity || ""} onChange={(e) => { const copy = [...parts]; copy[index].quantity = e.target.value; setParts(copy); }} />
-                <input className="rounded bg-zinc-900 p-3" placeholder="Закупка" value={item.purchase_price || ""} onChange={(e) => { const copy = [...parts]; copy[index].purchase_price = e.target.value; setParts(copy); }} />
-                <input className="rounded bg-zinc-900 p-3" placeholder="Продажа" value={item.unit_price || ""} onChange={(e) => { const copy = [...parts]; copy[index].unit_price = e.target.value; setParts(copy); }} />
+                <input className="rounded bg-zinc-900 p-3" placeholder="Название" value={item.name || ""} onChange={(e) => updatePart(index, { name: e.target.value })} />
+                <input className="rounded bg-zinc-900 p-3" placeholder="Артикул" value={item.reference || ""} onChange={(e) => updatePart(index, { reference: e.target.value })} />
+                <input className="rounded bg-zinc-900 p-3" placeholder="Кол-во" value={item.quantity || ""} onChange={(e) => updatePart(index, { quantity: e.target.value })} />
+                <input className="rounded bg-zinc-900 p-3" placeholder="Закупка" value={item.purchase_price || ""} onChange={(e) => updatePart(index, { purchase_price: e.target.value })} />
+                <input className="rounded bg-zinc-900 p-3" placeholder="Продажа" value={item.unit_price || ""} onChange={(e) => updatePart(index, { unit_price: e.target.value })} />
               </div>
 
               <div className="mt-3 grid gap-3 sm:grid-cols-4">

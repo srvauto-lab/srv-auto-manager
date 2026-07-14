@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { addHistory } from "@/lib/addHistory";
+import { useAppSettings } from "@/hooks/useAppSettings";
 
 type DocumentType = "order" | "devis" | "facture";
 
@@ -133,9 +134,15 @@ function createBatches(segments: TranslationSegment[]) {
 }
 
 export default function DocumentActions({ orderId }: { orderId: string }) {
-  const [seller, setSeller] = useState("srvauto");
-  const [lang, setLang] = useState("fr");
+  const { settings } = useAppSettings();
+  const [seller, setSeller] = useState(settings.default_seller);
+  const [lang, setLang] = useState(settings.default_document_language);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setSeller(settings.default_seller);
+    setLang(settings.default_document_language);
+  }, [settings.default_seller, settings.default_document_language]);
   const [message, setMessage] = useState("");
 
   async function translateBatch(texts: string[]) {

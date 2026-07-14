@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { addHistory } from "@/lib/addHistory";
+import { useAppSettings } from "@/hooks/useAppSettings";
 
 type Props = {
   workOrder: any;
@@ -16,15 +17,21 @@ type Payment = {
   note: string | null;
 };
 
-const methods = ["Наличные", "Карта", "Перевод", "Чек"];
-
 export default function WorkOrderPayments({ workOrder }: Props) {
+  const { settings } = useAppSettings();
+  const methods = settings.payment_methods;
   const [payments, setPayments] = useState<Payment[]>([]);
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("Наличные");
+  const [method, setMethod] = useState("");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
 
+
+  useEffect(() => {
+    if (!method || !methods.includes(method)) {
+      setMethod(methods[0] || "");
+    }
+  }, [method, methods]);
   async function loadPayments() {
     const { data, error } = await supabase
       .from("work_order_payments")
@@ -59,38 +66,22 @@ export default function WorkOrderPayments({ workOrder }: Props) {
       ? "Частично оплачено"
       : "Не оплачено";
 
-  async function updateWorkOrderPaymentSummary(
-    newPaid: number,
-    lastMethod: string | null,
-    lastDate: string | null
-  ) {
-    const newRemaining = Math.max(0, total - newPaid);
-
-    const newStatus =
-      total > 0 && newRemaining <= 0
-        ? "Оплачено"
-        : newPaid > 0
-        ? "Частично оплачено"
-        : "Не оплачено";
-
-    const { error } = await supabase
-      .from("work_orders")
-      .update({
-        paid_amount: newPaid,
-        payment_status: newStatus,
-        payment_method: lastMethod,
-        payment_date: lastDate,
-      })
-      .eq("id", workOrder.id);
-
-    if (error) throw error;
-  }
 
   async function addPayment() {
     const paymentAmount = Number(amount);
 
     if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
       alert("Введите корректную сумму.");
+      return;
+    }
+
+    if (paymentAmount > remaining) {
+      alert(`Сумма оплаты превышает остаток ${remaining.toFixed(2)} €.`);
+      return;
+    }
+
+    if (!method) {
+      alert("Выберите способ оплаты.");
       return;
     }
 
@@ -110,10 +101,6 @@ export default function WorkOrderPayments({ workOrder }: Props) {
         });
 
       if (insertError) throw insertError;
-
-      const newPaid = paid + paymentAmount;
-
-      await updateWorkOrderPaymentSummary(newPaid, method, paymentDate);
 
       await addHistory({
         workOrderId: workOrder.id,
@@ -149,23 +136,6 @@ export default function WorkOrderPayments({ workOrder }: Props) {
 
       if (deleteError) throw deleteError;
 
-      const remainingPayments = payments.filter((item) => item.id !== payment.id);
-      const newPaid = remainingPayments.reduce(
-        (sum, item) => sum + Number(item.amount || 0),
-        0
-      );
-
-      const lastPayment = [...remainingPayments].sort(
-        (a, b) =>
-          new Date(b.payment_date).getTime() -
-          new Date(a.payment_date).getTime()
-      )[0];
-
-      await updateWorkOrderPaymentSummary(
-        newPaid,
-        lastPayment?.payment_method || null,
-        lastPayment?.payment_date || null
-      );
 
       await addHistory({
         workOrderId: workOrder.id,

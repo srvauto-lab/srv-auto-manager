@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 function money(value: unknown) {
   return `${Number(value || 0).toFixed(2)} €`;
@@ -32,7 +32,10 @@ function lastMonthKeys(count = 12) {
   return result;
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function StatsPage() {
+  const supabase = await createClient();
   const [ordersResult, paymentsResult, laborResult, partsResult] =
     await Promise.all([
       supabase

@@ -1,17 +1,21 @@
-﻿"use client";
+"use client";
 
+import { Suspense } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import ServicePicker from "@/app/service-catalog/ServicePicker";
+import { useAppSettings } from "@/hooks/useAppSettings";
 
 type Client = { id: string; full_name: string; phone: string | null };
 type Vehicle = { id: string; client_id: string | null; brand: string; model: string; plate: string | null; vin: string | null };
 type LaborItem = { description: string; quantity: string; unit_price: string };
 type PartItem = { name: string; reference: string; quantity: string; unit_price: string };
 
-export default function NewWorkOrderPage() {
+function NewWorkOrderPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { settings } = useAppSettings();
 
   const [clients, setClients] = useState<Client[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -20,7 +24,7 @@ export default function NewWorkOrderPage() {
   const [vehicleId, setVehicleId] = useState("");
   const [mileage, setMileage] = useState("");
   const [customerComplaint, setCustomerComplaint] = useState("");
-  const [status, setStatus] = useState("Nouveau");
+  const [status, setStatus] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -38,10 +42,21 @@ export default function NewWorkOrderPage() {
       const { data: vehiclesData } = await supabase.from("vehicles").select("id, client_id, brand, model, plate, vin").order("created_at", { ascending: false });
       setClients(clientsData || []);
       setVehicles(vehiclesData || []);
+
+      const initialClientId = searchParams.get("clientId") || "";
+      const initialVehicleId = searchParams.get("vehicleId") || "";
+      setClientId(initialClientId);
+      setVehicleId(initialVehicleId);
     }
     loadData();
-  }, []);
+  }, [searchParams]);
 
+
+  useEffect(() => {
+    if (!status || !settings.work_order_statuses.includes(status)) {
+      setStatus(settings.work_order_statuses[0] || "Принят");
+    }
+  }, [settings.work_order_statuses, status]);
   const filteredVehicles = clientId ? vehicles.filter((v) => v.client_id === clientId) : vehicles;
 
   const laborTotal = useMemo(
@@ -102,8 +117,19 @@ export default function NewWorkOrderPage() {
         total: Number(i.quantity || 0) * Number(i.unit_price || 0),
       }));
 
-    if (cleanLabor.length) await supabase.from("work_order_labor_items").insert(cleanLabor);
-    if (cleanParts.length) await supabase.from("work_order_part_items").insert(cleanParts);
+    const laborResult = cleanLabor.length
+      ? await supabase.from("work_order_labor_items").insert(cleanLabor)
+      : { error: null };
+    const partsResult = cleanParts.length
+      ? await supabase.from("work_order_part_items").insert(cleanParts)
+      : { error: null };
+
+    if (laborResult.error || partsResult.error) {
+      await supabase.from("work_orders").delete().eq("id", order.id);
+      setSaving(false);
+      alert(laborResult.error?.message || partsResult.error?.message || "Не удалось сохранить позиции заказа.");
+      return;
+    }
 
     setSaving(false);
     router.push("/work-orders");
@@ -208,11 +234,9 @@ export default function NewWorkOrderPage() {
         </section>
 
         <select className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="Nouveau">Nouveau</option>
-          <option value="En cours">En cours</option>
-          <option value="En attente pièces">En attente pièces</option>
-          <option value="Terminé">Terminé</option>
-          <option value="Facturé">Facturé</option>
+          {settings.work_order_statuses.map((item) => (
+            <option key={item} value={item}>{item}</option>
+          ))}
         </select>
 
         <textarea className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3" placeholder="Комментарий" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -228,5 +252,13 @@ export default function NewWorkOrderPage() {
         </button>
       </form>
     </main>
+  );
+}
+
+export default function NewWorkOrderPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-zinc-950 p-6 text-zinc-400">Загрузка...</main>}>
+      <NewWorkOrderPageContent />
+    </Suspense>
   );
 }

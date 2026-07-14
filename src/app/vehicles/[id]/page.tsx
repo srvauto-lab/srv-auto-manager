@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import VehicleRecommendations from "@/components/VehicleRecommendations";
+
+export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -29,6 +31,7 @@ function formatDateTime(value: string | null | undefined) {
 }
 
 export default async function VehicleDetailPage({ params }: PageProps) {
+  const supabase = await createClient();
   const { id } = await params;
 
   const [

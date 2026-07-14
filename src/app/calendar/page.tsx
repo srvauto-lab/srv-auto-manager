@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import CalendarBoard from "@/components/calendar/CalendarBoard";
 import AppointmentModal from "@/components/calendar/AppointmentModal";
 import EditAppointmentModal from "@/components/calendar/EditAppointmentModal";
+import { useAppSettings } from "@/hooks/useAppSettings";
 
 type Client = {
   id: string;
@@ -22,6 +23,12 @@ type Vehicle = {
   plate: string | null;
 };
 
+type MechanicOption = {
+  id: string;
+  name: string;
+  role: string;
+};
+
 type Appointment = {
   id: string;
   appointment_date: string;
@@ -30,6 +37,7 @@ type Appointment = {
   title: string;
   description: string | null;
   mechanic: string | null;
+  mechanic_id?: string | null;
   lift: string | null;
   status: string;
   work_order_id: string | null;
@@ -40,16 +48,18 @@ type Appointment = {
 };
 
 export default function CalendarPage() {
+  const { settings } = useAppSettings();
   const today = new Date().toISOString().slice(0, 10);
 
   const [date, setDate] = useState(today);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [mechanics, setMechanics] = useState<MechanicOption[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalDate, setModalDate] = useState(today);
-  const [modalLift, setModalLift] = useState("Пост №1");
+  const [modalLift, setModalLift] = useState("");
 
   const [editAppointment, setEditAppointment] = useState<Appointment | null>(
     null
@@ -62,7 +72,7 @@ export default function CalendarPage() {
   }
 
   async function loadData() {
-    const [appointmentsRes, clientsRes, vehiclesRes] = await Promise.all([
+    const [appointmentsRes, clientsRes, vehiclesRes, mechanicsRes] = await Promise.all([
       supabase
         .from("appointments")
         .select(
@@ -82,6 +92,11 @@ export default function CalendarPage() {
         .from("vehicles")
         .select("id, client_id, brand, model, plate")
         .order("created_at", { ascending: false }),
+
+      fetch("/api/calendar/mechanics", { cache: "no-store" }).then(async (response) => ({
+        ok: response.ok,
+        data: await response.json(),
+      })),
     ]);
 
     if (appointmentsRes.error) alert(appointmentsRes.error.message);
@@ -92,6 +107,9 @@ export default function CalendarPage() {
 
     if (vehiclesRes.error) alert(vehiclesRes.error.message);
     else setVehicles(vehiclesRes.data || []);
+
+    if (!mechanicsRes.ok) alert(mechanicsRes.data?.error || "Не удалось загрузить механиков.");
+    else setMechanics(mechanicsRes.data?.mechanics || []);
   }
 
   useEffect(() => {
@@ -205,11 +223,12 @@ export default function CalendarPage() {
 
       <CalendarBoard
         selectedDate={date}
+        lifts={settings.lifts}
         appointments={appointments}
         onDelete={deleteAppointment}
         onAdd={(selectedDate, selectedLift) => {
           setModalDate(selectedDate);
-          setModalLift(selectedLift);
+          setModalLift(selectedLift || settings.lifts[0] || "");
           setModalOpen(true);
         }}
         onEdit={(appointment) => setEditAppointment(appointment)}
@@ -222,6 +241,8 @@ export default function CalendarPage() {
         lift={modalLift}
         clients={clients}
         vehicles={vehicles}
+        lifts={settings.lifts}
+        mechanics={mechanics}
         onClose={() => setModalOpen(false)}
         onSaved={loadData}
       />
@@ -230,6 +251,8 @@ export default function CalendarPage() {
         appointment={editAppointment}
         clients={clients}
         vehicles={vehicles}
+        lifts={settings.lifts}
+        mechanics={mechanics}
         onClose={() => setEditAppointment(null)}
         onSaved={loadData}
       />

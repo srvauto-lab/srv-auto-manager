@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useAppSettings } from "@/hooks/useAppSettings";
 
 export default function StatusSelect({
   orderId,
@@ -11,6 +12,7 @@ export default function StatusSelect({
   currentStatus: string;
 }) {
   const router = useRouter();
+  const { settings } = useAppSettings();
 
   async function updateStatus(status: string) {
     const { error } = await supabase
@@ -32,11 +34,14 @@ export default function StatusSelect({
       defaultValue={currentStatus}
       onChange={(e) => updateStatus(e.target.value)}
     >
-      <option value="Nouveau">Nouveau</option>
-      <option value="En cours">En cours</option>
-      <option value="En attente pièces">En attente pièces</option>
-      <option value="Terminé">Terminé</option>
-      <option value="Facturé">Facturé</option>
+      {!settings.work_order_statuses.includes(currentStatus) && currentStatus && (
+        <option value={currentStatus}>{currentStatus}</option>
+      )}
+      {settings.work_order_statuses.map((status) => (
+        <option key={status} value={status}>
+          {status}
+        </option>
+      ))}
     </select>
   );
 }

@@ -11,6 +11,12 @@ type Client = {
   phone: string | null;
 };
 
+type MechanicOption = {
+  id: string;
+  name: string;
+  role: string;
+};
+
 type Vehicle = {
   id: string;
   client_id: string | null;
@@ -18,15 +24,6 @@ type Vehicle = {
   model: string;
   plate: string | null;
 };
-
-const lifts = [
-  "Пост №1",
-  "Пост №2",
-  "Пост №3",
-  "Пост приёмки / диагностики",
-];
-
-const mechanics = ["Сергей", "Вадим", "Роберт"];
 
 const statuses = [
   { value: "planned", label: "Запланировано" },
@@ -41,12 +38,16 @@ export default function EditAppointmentModal({
   appointment,
   clients,
   vehicles,
+  lifts,
+  mechanics,
   onClose,
   onSaved,
 }: {
   appointment: any | null;
   clients: Client[];
   vehicles: Vehicle[];
+  lifts: string[];
+  mechanics: MechanicOption[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -58,7 +59,7 @@ export default function EditAppointmentModal({
   const [endTime, setEndTime] = useState("10:00");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [mechanic, setMechanic] = useState("");
+  const [mechanicId, setMechanicId] = useState("");
   const [status, setStatus] = useState("planned");
   const [saving, setSaving] = useState(false);
 
@@ -66,16 +67,20 @@ export default function EditAppointmentModal({
     if (!appointment) return;
 
     setAppointmentDate(appointment.appointment_date || "");
-    setLift(appointment.lift || "Пост №1");
+    setLift(appointment.lift || lifts[0] || "");
     setClientId(appointment.client_id || appointment.clients?.id || "");
     setVehicleId(appointment.vehicle_id || appointment.vehicles?.id || "");
     setStartTime(appointment.start_time?.slice(0, 5) || "09:00");
     setEndTime(appointment.end_time?.slice(0, 5) || "10:00");
     setTitle(appointment.title || "");
     setDescription(appointment.description || "");
-    setMechanic(appointment.mechanic || "");
+    setMechanicId(
+      appointment.mechanic_id ||
+        mechanics.find((item) => item.name === appointment.mechanic)?.id ||
+        ""
+    );
     setStatus(appointment.status || "planned");
-  }, [appointment]);
+  }, [appointment, lifts, mechanics]);
 
   const filteredVehicles = useMemo(() => {
     if (!clientId) return vehicles;
@@ -126,6 +131,8 @@ export default function EditAppointmentModal({
         return;
       }
 
+      const selectedMechanic = mechanics.find((item) => item.id === mechanicId);
+
       const { error } = await supabase
         .from("appointments")
         .update({
@@ -137,7 +144,8 @@ export default function EditAppointmentModal({
           end_time: endTime || null,
           title: title.trim(),
           description: description.trim() || null,
-          mechanic: mechanic || null,
+          mechanic: selectedMechanic?.name || null,
+          mechanic_id: selectedMechanic?.id || null,
           status,
         })
         .eq("id", appointment.id);
@@ -166,7 +174,8 @@ export default function EditAppointmentModal({
         end_time: endTime || null,
         title: title.trim(),
         description: description.trim() || null,
-        mechanic: mechanic || null,
+        mechanic: mechanics.find((item) => item.id === mechanicId)?.name || null,
+        mechanic_id: mechanicId || null,
         status: "planned",
         work_order_id: null,
       });
@@ -334,13 +343,13 @@ export default function EditAppointmentModal({
 
           <select
             className="w-full rounded bg-zinc-950 p-3"
-            value={mechanic}
-            onChange={(e) => setMechanic(e.target.value)}
+            value={mechanicId}
+            onChange={(e) => setMechanicId(e.target.value)}
           >
             <option value="">Механик</option>
             {mechanics.map((item) => (
-              <option key={item} value={item}>
-                {item}
+              <option key={item.id} value={item.id}>
+                {item.name}
               </option>
             ))}
           </select>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import WorkOrderEditor from "./WorkOrderEditor";
 import DocumentActions from "@/components/DocumentActions";
 import DocumentHistory from "@/components/DocumentHistory";
@@ -7,11 +7,14 @@ import WorkOrderChecklist from "@/components/WorkOrderChecklist";
 import WorkOrderPhotos from "@/components/WorkOrderPhotos";
 import WorkOrderShell from "@/components/WorkOrderShell";
 
+export const dynamic = "force-dynamic";
+
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
 export default async function WorkOrderDetailPage({ params }: PageProps) {
+  const supabase = await createClient();
   const { id } = await params;
 
   const { data: order, error } = await supabase

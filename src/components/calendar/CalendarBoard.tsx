@@ -18,8 +18,6 @@ type Appointment = {
   vehicles?: any;
 };
 
-const lifts = ["Пост №1", "Пост №2", "Пост №3", "Пост приёмки / диагностики"];
-
 function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
@@ -33,6 +31,7 @@ function toDateString(date: Date) {
 export default function CalendarBoard({
   selectedDate,
   appointments,
+  lifts,
   onDelete,
   onAdd,
   onEdit,
@@ -40,6 +39,7 @@ export default function CalendarBoard({
 }: {
   selectedDate: string;
   appointments: Appointment[];
+  lifts: string[];
   onDelete: (id: string) => void;
   onAdd: (date: string, lift: string) => void;
   onEdit: (appointment: Appointment) => void;

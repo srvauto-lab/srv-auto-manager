@@ -1,7 +1,10 @@
-﻿"use client";
+"use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { AppSettings, defaultAppSettings } from "@/lib/appSettings";
+import { notifyAppSettingsUpdated } from "@/hooks/useAppSettings";
 
 type Company = {
   id: string;
@@ -46,86 +49,7 @@ type Company = {
   is_default: boolean | null;
 };
 
-type AppSettings = {
-  default_seller: string;
-  default_document_language: string;
-  invoice_prefix: string;
-  devis_prefix: string;
-  work_order_prefix: string;
-  invoice_number_format: string;
-  devis_number_format: string;
-  work_order_number_format: string;
-  mechanics: string[];
-  lifts: string[];
-  payment_methods: string[];
-  work_order_statuses: string[];
-  opening_hours: Record<string, string>;
-  reminders: {
-    service_days: number;
-    unpaid_invoice_days: number;
-    vehicle_ready_days: number;
-  };
-  ai: {
-    enabled: boolean;
-    model: string;
-    target_language: string;
-    translation_style: string;
-  };
-  appearance: {
-    accent: string;
-    compact_mode: boolean;
-    company_title: string;
-  };
-};
-
-const defaultSettings: AppSettings = {
-  default_seller: "srvauto",
-  default_document_language: "fr",
-  invoice_prefix: "FA",
-  devis_prefix: "DV",
-  work_order_prefix: "OR",
-  invoice_number_format: "{PREFIX}-{YY}{MM}-{SEQ6}",
-  devis_number_format: "{PREFIX}-{YY}{MM}-{SEQ6}",
-  work_order_number_format: "{YY}-{DD}-{MM}-{SEQ3}",
-  mechanics: ["Сергей", "Вадим", "Роберт"],
-  lifts: ["Пост №1", "Пост №2", "Пост №3", "Пост приёмки / диагностики"],
-  payment_methods: ["Наличные", "Карта", "Перевод", "Чек"],
-  work_order_statuses: [
-    "Записан",
-    "Принят",
-    "Диагностика",
-    "Ожидание запчастей",
-    "В работе",
-    "Готов",
-    "Выдан",
-    "Закрыт",
-  ],
-  opening_hours: {
-    monday: "08:00-18:00",
-    tuesday: "08:00-18:00",
-    wednesday: "08:00-18:00",
-    thursday: "08:00-18:00",
-    friday: "08:00-18:00",
-    saturday: "09:00-13:00",
-    sunday: "closed",
-  },
-  reminders: {
-    service_days: 180,
-    unpaid_invoice_days: 7,
-    vehicle_ready_days: 3,
-  },
-  ai: {
-    enabled: true,
-    model: "gpt-5-mini",
-    target_language: "fr",
-    translation_style: "professional_garage",
-  },
-  appearance: {
-    accent: "green",
-    compact_mode: true,
-    company_title: "SRV AUTO MANAGER",
-  },
-};
+const defaultSettings = defaultAppSettings;
 
 const tabs = [
   ["companies", "Компании"],
@@ -134,6 +58,7 @@ const tabs = [
   ["garage", "Гараж"],
   ["finance", "Финансы"],
   ["reminders", "Напоминания"],
+  ["communications", "WhatsApp / SMS"],
   ["ai", "AI"],
   ["appearance", "Внешний вид"],
 ] as const;
@@ -249,6 +174,7 @@ export default function SettingsPage() {
       return;
     }
 
+    notifyAppSettingsUpdated();
     alert("Настройки сохранены.");
   }
 
@@ -712,13 +638,20 @@ export default function SettingsPage() {
 
         {tab === "garage" && (
           <div className="grid gap-6 xl:grid-cols-2">
-            <ListEditor
-              title="Механики"
-              value={arrayToText(settings.mechanics)}
-              onChange={(value) =>
-                updateSettings("mechanics", csvToArray(value))
-              }
-            />
+            <SettingsSection title="Механики">
+              <p className="text-sm leading-6 text-zinc-400">
+                Механики больше не дублируются в общих настройках. Единый источник
+                имён, ролей и активности — аккаунты сотрудников. После переименования
+                сотрудника будущие записи календаря обновляются автоматически, а старые
+                записи сохраняют историческое имя.
+              </p>
+              <Link
+                href="/access"
+                className="mt-4 inline-flex rounded-lg bg-green-500 px-4 py-3 text-sm font-bold text-black hover:bg-green-400"
+              >
+                Управлять сотрудниками
+              </Link>
+            </SettingsSection>
             <ListEditor
               title="Посты / подъёмники"
               value={arrayToText(settings.lifts)}
@@ -838,6 +771,77 @@ export default function SettingsPage() {
               />
             </div>
           </SettingsSection>
+        )}
+
+        {tab === "communications" && (
+          <div className="grid gap-6 xl:grid-cols-2">
+            <SettingsSection title="Основные параметры">
+              <div className="grid gap-4">
+                <TextSetting
+                  label="Код страны по умолчанию"
+                  value={settings.communications.default_country_code}
+                  onChange={(value) =>
+                    updateSettings("communications", {
+                      ...settings.communications,
+                      default_country_code: value,
+                    })
+                  }
+                />
+                <p className="text-xs leading-5 text-zinc-500">
+                  Для французских номеров оставь +33. Секреты Twilio хранятся только
+                  в .env.local и Vercel, а не в базе и не на этой странице.
+                </p>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title="Переменные шаблонов">
+              <p className="text-sm leading-6 text-zinc-400">
+                Доступны: {"{CLIENT}"}, {"{VEHICLE}"}, {"{DATE}"}, {"{TIME}"},
+                {" {DOCUMENT}"}, {"{AMOUNT}"}.
+              </p>
+            </SettingsSection>
+
+            <LongTextSetting
+              label="Подтверждение записи"
+              value={settings.communications.appointment_confirmation}
+              onChange={(value) =>
+                updateSettings("communications", {
+                  ...settings.communications,
+                  appointment_confirmation: value,
+                })
+              }
+            />
+            <LongTextSetting
+              label="Автомобиль готов"
+              value={settings.communications.vehicle_ready}
+              onChange={(value) =>
+                updateSettings("communications", {
+                  ...settings.communications,
+                  vehicle_ready: value,
+                })
+              }
+            />
+            <LongTextSetting
+              label="Напоминание об оплате"
+              value={settings.communications.unpaid_invoice}
+              onChange={(value) =>
+                updateSettings("communications", {
+                  ...settings.communications,
+                  unpaid_invoice: value,
+                })
+              }
+            />
+            <LongTextSetting
+              label="Напоминание о сервисе"
+              value={settings.communications.service_reminder}
+              onChange={(value) =>
+                updateSettings("communications", {
+                  ...settings.communications,
+                  service_reminder: value,
+                })
+              }
+            />
+          </div>
         )}
 
         {tab === "ai" && (
@@ -1036,6 +1040,25 @@ function ListEditor({
       <p className="mt-2 text-xs text-zinc-500">
         Одна строка — один пункт.
       </p>
+    </SettingsSection>
+  );
+}
+function LongTextSetting({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <SettingsSection title={label}>
+      <textarea
+        className="min-h-40 w-full rounded bg-zinc-950 p-4"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </SettingsSection>
   );
 }
