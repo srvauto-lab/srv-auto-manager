@@ -39,3 +39,21 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Supabase
+supabase/.temp/
+
+# local env
+.env.local
+.env.development.local
+.env.production.local
+
+# local database dumps
+*.sql.bak
+
+# logs
+logs/
+*.log
+
+# VS Code
+.vscode/settings.json
