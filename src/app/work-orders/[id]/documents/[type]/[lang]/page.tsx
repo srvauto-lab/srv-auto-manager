@@ -364,7 +364,9 @@ export default async function DocumentPage({ params, searchParams }: PageProps) 
     0
   );
 
-  const issueDate = documentRecord?.created_at
+  const issueDate = documentRecord?.issue_date
+    ? new Date(`${documentRecord.issue_date}T12:00:00`)
+    : documentRecord?.created_at
     ? new Date(documentRecord.created_at)
     : new Date();
 
