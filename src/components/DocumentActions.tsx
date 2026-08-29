@@ -138,6 +138,10 @@ export default function DocumentActions({ orderId }: { orderId: string }) {
   const [seller, setSeller] = useState(settings.default_seller);
   const [lang, setLang] = useState(settings.default_document_language);
   const [saving, setSaving] = useState(false);
+  const [factureNumber, setFactureNumber] = useState("");
+  const [factureDate, setFactureDate] = useState(
+    () => new Date().toISOString().slice(0, 10)
+  );
 
   useEffect(() => {
     setSeller(settings.default_seller);
@@ -387,6 +391,12 @@ export default function DocumentActions({ orderId }: { orderId: string }) {
         translated_payload: translationPayload,
         translated_at:
           translationPayload !== null ? new Date().toISOString() : null,
+        ...(type === "facture"
+          ? {
+              facture_number: normalizeText(factureNumber) || null,
+              issue_date: factureDate,
+            }
+          : {}),
       };
 
       const { data, error } = await supabase
@@ -415,12 +425,20 @@ export default function DocumentActions({ orderId }: { orderId: string }) {
           : "Документ создан."
       );
 
+      if (type === "facture") {
+        setFactureNumber("");
+      }
+
       window.open(
         `/work-orders/${orderId}/documents/${type}/${lang}?seller=${seller}&documentId=${data.id}`,
         "_blank"
       );
     } catch (error: any) {
-      alert(error?.message || "Не удалось создать документ.");
+      if (error?.code === "23505") {
+        alert("Такой номер документа уже существует. Укажите другой номер.");
+      } else {
+        alert(error?.message || "Не удалось создать документ.");
+      }
     } finally {
       setSaving(false);
     }
@@ -450,6 +468,38 @@ export default function DocumentActions({ orderId }: { orderId: string }) {
           <option value="fr">Français — traduction IA</option>
           <option value="ru">Русский</option>
         </select>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+        <p className="text-sm font-bold text-zinc-300">Настройки Facture</p>
+        <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <label className="text-sm text-zinc-400">
+            Номер (оставьте пустым для автоматического)
+            <input
+              className="mt-2 w-full rounded-lg bg-zinc-900 p-3 text-white"
+              value={factureNumber}
+              onChange={(event) => setFactureNumber(event.target.value)}
+              placeholder={
+                seller === "serhii"
+                  ? "Автоматически: FS-ГГММ-000001"
+                  : "Автоматически: FA-ГГММ-000001"
+              }
+              disabled={saving}
+            />
+          </label>
+
+          <label className="text-sm text-zinc-400">
+            Дата Facture
+            <input
+              type="date"
+              className="mt-2 w-full rounded-lg bg-zinc-900 p-3 text-white"
+              value={factureDate}
+              onChange={(event) => setFactureDate(event.target.value)}
+              disabled={saving}
+              required
+            />
+          </label>
+        </div>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
