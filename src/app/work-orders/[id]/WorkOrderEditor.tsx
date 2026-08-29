@@ -115,8 +115,37 @@ export default function WorkOrderEditor({ order, laborItems, partItems }: Props)
     ]);
   }
 
-  function removeLabor(index: number) {
-    setLabors(labors.filter((_, itemIndex) => itemIndex !== index));
+  async function removeLabor(index: number) {
+    const item = labors[index];
+    if (!item) return;
+
+    if (item.isNew) {
+      setLabors((current) =>
+        current.filter((_, itemIndex) => itemIndex !== index)
+      );
+      return;
+    }
+
+    if (!confirm("Удалить работу из заказ-наряда?")) return;
+
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("work_order_labor_items")
+      .delete()
+      .eq("id", item.id)
+      .eq("work_order_id", order.id);
+
+    setSaving(false);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setLabors((current) => current.filter((labor) => labor.id !== item.id));
+    setMessage("Работа удалена. Итоговая сумма пересчитана.");
+    router.refresh();
   }
 
   async function moveInventory({
@@ -396,6 +425,8 @@ export default function WorkOrderEditor({ order, laborItems, partItems }: Props)
     setMessage("");
 
     try {
+      const savedLabors: any[] = [];
+
       for (const item of labors) {
         const payload = {
           work_order_id: order.id,
@@ -406,13 +437,25 @@ export default function WorkOrderEditor({ order, laborItems, partItems }: Props)
         };
 
         const result = item.isNew
-          ? await supabase.from("work_order_labor_items").insert(payload)
+          ? await supabase
+              .from("work_order_labor_items")
+              .insert(payload)
+              .select("*")
+              .single()
           : await supabase
               .from("work_order_labor_items")
               .update(payload)
-              .eq("id", item.id);
+              .eq("id", item.id)
+              .eq("work_order_id", order.id)
+              .select("*")
+              .single();
 
         if (result.error) throw result.error;
+
+        savedLabors.push({
+          ...result.data,
+          isNew: false,
+        });
       }
 
       const savedParts: any[] = [];
@@ -489,6 +532,8 @@ export default function WorkOrderEditor({ order, laborItems, partItems }: Props)
 
       const mileageSaved = await saveMileageHistory();
       if (!mileageSaved) return;
+
+      setLabors(savedLabors);
 
       if (savedParts.length) {
         const nextParts = savedParts.map((part) => ({ ...part }));
